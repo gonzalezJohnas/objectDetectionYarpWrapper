@@ -148,8 +148,8 @@
 
 #define COMMAND_VOCAB_HELP               VOCAB4('h','e','l','p')
 #define COMMAND_VOCAB_FAILED             VOCAB4('f','a','i','l')
-#define COMMAND_VOCAB_LABEL             VOCAB4('l','a','b','e')
-
+#define COMMAND_VOCAB_LABEL              VOCAB4('l','a','b','e')
+#define COMMAND_VOCAB_THRESHOLD          VOCAB4('t','h','r','e')
 
 class ObjectDetectionModule:public yarp::os::RFModule {
 

@@ -99,6 +99,8 @@ bool ObjectDetectionModule::configure(yarp::os::ResourceFinder &rf) {
         return false;
     }
 
+    inferThread->start();
+
     attach(handlerPort);                  // attach to port
 
 
@@ -155,6 +157,15 @@ bool ObjectDetectionModule::respond(const Bottle &command, Bottle &reply) {
             {
                 switch (command.get(1).asVocab()) {
 
+
+                    case COMMAND_VOCAB_THRESHOLD:
+                    {
+                        const double t_InferenceThreshold = command.get(2).asDouble();
+                        this->inferThread->setInferenceThreshold(t_InferenceThreshold);
+                        ok = true;
+                        break;
+                    }
+
                     default:
                         cout << "received an unknown request after SET" << endl;
                         break;
@@ -169,9 +180,8 @@ bool ObjectDetectionModule::respond(const Bottle &command, Bottle &reply) {
 
                     case COMMAND_VOCAB_LABEL:
                     {
-
                         const string predictedClass = inferThread->predictTopClass();
-                        if(predictedClass != ""){
+                        if(!predictedClass.empty()){
                             inferThread->writeToLabelPort(predictedClass);
                             reply.addVocab(Vocab::encode("many"));
                             reply.addString(predictedClass);
@@ -181,6 +191,14 @@ bool ObjectDetectionModule::respond(const Bottle &command, Bottle &reply) {
                             reply.addString("Unable to run the graph");
                         }
 
+                        ok = true;
+                        break;
+                    }
+
+                    case COMMAND_VOCAB_THRESHOLD :
+                    {
+                        const double t_thresholdCurrentValue = this->inferThread->getInferenceThreshold();
+                        reply.addDouble(t_thresholdCurrentValue);
                         ok = true;
                         break;
                     }

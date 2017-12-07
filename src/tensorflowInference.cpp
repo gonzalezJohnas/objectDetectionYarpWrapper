@@ -22,10 +22,10 @@ tensorflowInference::tensorflowInference(std::string t_pathGraph, std::string t_
 
     this->m_input_layer = "image_tensor:0";
     this->m_output_layer =  { "detection_boxes:0", "detection_scores:0", "detection_classes:0", "num_detections:0" };
-    m_model_name = std::move(t_model_name);
+    this->m_model_name = std::move(t_model_name);
 
-
-    m_inferencethreshold = 0.5;
+    this->inferenceFinished = false;
+    this->m_inferencethreshold = 0.5;
 
     size_t label_count;
     Status read_labels_status = ReadLabelsFile(m_pathToLabels, &m_labels, &label_count);
@@ -180,9 +180,13 @@ std::string tensorflowInference::inferObject(cv::Mat t_inputImage) {
         return "";
     } else {
         PrintTopLabels(outputs, this->m_pathToLabels);
+        this->inferenceFinished = true;
+
         return "";
 
     }
+
+
 
 }
 

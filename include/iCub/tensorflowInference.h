@@ -38,6 +38,9 @@
 class tensorflowInference {
 public:
 
+    bool inferenceFinished;
+
+
     /**
      * Defautls constructor
      * @param pathGraph

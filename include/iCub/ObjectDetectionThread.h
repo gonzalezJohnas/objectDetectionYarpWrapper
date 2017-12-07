@@ -54,8 +54,10 @@ private:
 
     std::unique_ptr<tensorflowInference> tensorflowObjectDetectionInference;
 
+    yarp::sig::ImageOf<yarp::sig::PixelBgr> outputBoxesImage;
 
     yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > inputImagePort;
+    yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelBgr> > outputImageBoxesPort;
     yarp::os::BufferedPort<yarp::os::Bottle> outputLabelPort;
 
 public:
@@ -115,6 +117,18 @@ public:
     void writeToLabelPort(std::string label);
 
     std::string predictTopClass();
+
+
+    /**
+     * Set inference threshold for ObjectDetection DeepNetwork
+     * @param t_thresholdInference
+     */
+    void setInferenceThreshold(const double t_thresholdInference);
+
+    /**
+    * Get the inference threshold for ObjectDetection DeepNetwork
+    */
+    double getInferenceThreshold();
 
 
 };
