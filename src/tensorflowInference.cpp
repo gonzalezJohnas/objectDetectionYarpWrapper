@@ -2,6 +2,9 @@
 // Created by jonas on 11/6/17.
 //
 
+#include <tiff.h>
+
+#include <utility>
 #include "../include/iCub/tensorflowInference.h"
 
 // These are all common classes it's handy to reference with no namespace.
@@ -14,13 +17,23 @@ using tensorflow::TensorShape;
 
 tensorflowInference::tensorflowInference(std::string t_pathGraph, std::string t_pathLabels,  std::string t_model_name) {
 
-    this->pathToGraph = t_pathGraph;
-    this->pathToLabels = t_pathLabels;
+    this->m_pathToGraph = std::move(t_pathGraph);
+    this->m_pathToLabels = std::move(t_pathLabels);
 
-    this->input_layer = "image_tensor:0";
-    this->output_layer = "detection_boxes:0";
-    model_name = t_model_name;
+    this->m_input_layer = "image_tensor:0";
+    this->m_output_layer =  { "detection_boxes:0", "detection_scores:0", "detection_classes:0", "num_detections:0" };
+    m_model_name = std::move(t_model_name);
 
+
+    m_inferencethreshold = 0.5;
+
+    size_t label_count;
+    Status read_labels_status = ReadLabelsFile(m_pathToLabels, &m_labels, &label_count);
+
+
+    if (!read_labels_status.ok()) {
+        LOG(ERROR) << read_labels_status;
+    }
 
 }
 
@@ -28,7 +41,7 @@ tensorflowInference::tensorflowInference(std::string t_pathGraph, std::string t_
 /************************************* CORE FUNCTIONS  *************************************/
 
 
-Status tensorflowInference::ReadLabelsFile(const string &file_name, std::vector<string> *result,
+Status tensorflowInference::ReadLabelsFile(const string &file_name,  std::map<int, std::string> *result,
                                            size_t *found_label_count) {
     std::ifstream file(file_name);
     if (!file) {
@@ -37,14 +50,26 @@ Status tensorflowInference::ReadLabelsFile(const string &file_name, std::vector<
     }
     result->clear();
     string line;
+    int id;
     while (std::getline(file, line)) {
-        result->push_back(line);
+        if(line.find("id:") != std::string::npos){
+
+            std::size_t pos = line.find(":");
+            const char*  tmp = line.substr(pos+1).c_str();
+            id = atoi(tmp);
+        }
+
+
+        if(line.find("display_name") != std::string::npos){
+
+            std::size_t pos = line.find(":");      // position of "live" in str
+            std::string className = line.substr (pos+1);     // get from "live" to the end
+            result->insert(std::pair<int,string>(id, className));
+
+
+        }
     }
-    *found_label_count = result->size();
-    const int padding = 16;
-    while (result->size() % padding) {
-        result->emplace_back();
-    }
+
     return Status::OK();
 }
 
@@ -55,24 +80,21 @@ tensorflow::Tensor tensorflowInference::MatToTensor(cv::Mat inputImage) {
     auto root = tensorflow::Scope::NewRootScope();
 
     // allocate a Tensor
-    Tensor tensorImage(tensorflow::DT_INT32, TensorShape({1, inputImageHeight, inputImageWidth, 3}));
+    Tensor tensorImage(tensorflow::DT_UINT8, TensorShape({1, inputImageHeight, inputImageWidth, 3}));
 
 
 
     // get pointer to memory for that Tensor
-    int *p = tensorImage.flat<int>().data();
+    auto *p = tensorImage.flat<uint8>().data();
     // create a "fake" cv::Mat from it
     cv::Mat matToTensor(inputImageHeight, inputImageWidth, CV_8U, p);
 
-    // Resize inputMat image
-    cv::resize(inputImage, inputImage, cv::Size(inputImageHeight, inputImageWidth));
 
 
     // use it here as a destination
     inputImage.convertTo(matToTensor, CV_8U);
 
-
-    normalizeTensor(&tensorImage);
+    //normalizeTensor(&tensorImage);
 
     return tensorImage;
 
@@ -94,52 +116,38 @@ tensorflow::Status tensorflowInference::LoadGraph(const std::string &graph_file_
     return Status::OK();
 }
 
-tensorflow::Status tensorflowInference::GetTopLabels(const std::vector<Tensor> &outputs, int how_many_labels, Tensor *indices,
-                                  Tensor *scores) {
-    auto root = tensorflow::Scope::NewRootScope();
-    using namespace ::tensorflow::ops;  // NOLINT(build/namespaces)
-
-    string output_name = "top_k";
-    TopK(root.WithOpName(output_name), outputs[0], how_many_labels);
-    // This runs the GraphDef network definition that we've just constructed, and
-    // returns the results in the output tensors.
-    tensorflow::GraphDef graph;
-    TF_RETURN_IF_ERROR(root.ToGraphDef(&graph));
-
-    std::unique_ptr<tensorflow::Session> session(
-            tensorflow::NewSession(tensorflow::SessionOptions()));
-    TF_RETURN_IF_ERROR(session->Create(graph));
-    // The TopK node returns two outputs, the scores and their original indices,
-    // so we have to append :0 and :1 to specify them both.
-    std::vector<Tensor> out_tensors;
-    TF_RETURN_IF_ERROR(session->Run({}, {output_name + ":0", output_name + ":1"},
-                                    {}, &out_tensors));
-    *scores = out_tensors[0];
-    *indices = out_tensors[1];
-    return Status::OK();
-}
-
-tensorflow::Status tensorflowInference::PrintTopLabels(const std::vector<tensorflow::Tensor> &outputs,
+tensorflow::Status tensorflowInference::PrintTopLabels(std::vector<tensorflow::Tensor> &outputs,
                                                        const std::string &labels_file_name) {
-    std::vector<string> labels;
-    size_t label_count;
-    Status read_labels_status =
-            ReadLabelsFile(labels_file_name, &labels, &label_count);
-    if (!read_labels_status.ok()) {
-        LOG(ERROR) << read_labels_status;
-        return read_labels_status;
+
+
+
+    auto boxes = outputs[0].flat_outer_dims<float,3>();
+    tensorflow::TTypes<float>::Flat scores = outputs[1].flat<float>();
+    tensorflow::TTypes<float>::Flat classes = outputs[2].flat<float>();
+    tensorflow::TTypes<float>::Flat num_detections = outputs[3].flat<float>();
+
+    LOG(ERROR) << "number of detection:" << num_detections << std::endl;
+
+
+    for(size_t i = 0; i < num_detections(0) && i < 20;++i)
+    {
+        if(scores(i) > m_inferencethreshold)
+        {
+            int x1 = m_withInputImage*boxes(0,i,1);
+            int y1 = m_heightInputImage*boxes(0,i,0);
+
+            int x2 = m_withInputImage*boxes(0,i,3);
+            int y2 = m_heightInputImage*boxes(0,i,2);
+
+
+
+            LOG(ERROR) << i << ",score:" << scores(i)<< ",classID:" << classes(i) << ", "<< ",class:" << m_labels[classes(i)] << ",box:" << "," << x1 << "," << y1 << "," << x2 << "," << y2;
+            rectangle(m_inputImage, cvPoint(x1, y1), cvPoint(x2, y2), CvScalar(classes(i)*2 , 100 , 255));
+
+        }
     }
-    const int how_many_labels = std::min(5, static_cast<int>(label_count));
-    Tensor indices;
-    Tensor scores;
-    TF_RETURN_IF_ERROR(GetTopLabels(outputs, how_many_labels, &indices, &scores));
-    tensorflow::TTypes<float>::Flat scores_flat = scores.flat<float>();
-    tensorflow::TTypes<int32>::Flat indices_flat = indices.flat<int32>();
-    for (int pos = 0; pos < how_many_labels; ++pos) {
-        const int label_index = indices_flat(pos);
-        const float score = scores_flat(pos);
-        LOG(INFO) << labels[label_index] << " (" << label_index << "): " << score;
-    }
+
+
     return Status::OK();
 }
 
@@ -147,82 +155,32 @@ tensorflow::Status tensorflowInference::PrintTopLabels(const std::vector<tensorf
 
 std::string  tensorflowInference::GetTopClass(const std::vector<tensorflow::Tensor> &outputs,
                                                        const std::string &labels_file_name) {
-    std::vector<string> labels;
-    size_t label_count;
-    Status read_labels_status =
-            ReadLabelsFile(labels_file_name, &labels, &label_count);
-    if (!read_labels_status.ok()) {
-        LOG(ERROR) << read_labels_status;
-        return "";
-    }
-    const int how_many_labels = std::min(5, static_cast<int>(label_count));
-    Tensor indices;
-    Tensor scores;
-    GetTopLabels(outputs, how_many_labels, &indices, &scores);
-    tensorflow::TTypes<float>::Flat scores_flat = scores.flat<float>();
-    tensorflow::TTypes<int32>::Flat indices_flat = indices.flat<int32>();
-
-    return labels[indices_flat(0)];
+    return "";
 }
 
 
-tensorflow::Status
-tensorflowInference::normalizeTensor(tensorflow::Tensor *inputTensor) {
-
-    auto root = tensorflow::Scope::NewRootScope();
-    using namespace ::tensorflow::ops;  // NOLINT(build/namespaces)
-
-    string output_name = "normalized";
-    std::vector<Tensor> out_tensors;
-
-    std::vector<std::pair<string, tensorflow::Tensor>> inputs = {
-            {"input", *inputTensor},
-    };
-
-    auto uint8_caster =  Cast(root.WithOpName("uint8_caster"), *inputTensor, tensorflow::DT_UINT8);
-    auto dims_expander = ExpandDims(root, uint8_caster, 0);
-    // Bilinearly resize the image to fit the required dimensions.
-    auto resized = ResizeBilinear(
-            root, dims_expander,
-            Const(root.WithOpName("size"), {input_height, input_width}));
-    // Subtract the mean and divide by the scale.
-    Div(root.WithOpName(output_name), Sub(root, resized, {input_mean}),
-        {input_std});
-
-    // This runs the GraphDef network definition that we've just constructed, and
-    // returns the results in the output tensor.
-    tensorflow::GraphDef graph;
 
 
-    TF_RETURN_IF_ERROR(root.ToGraphDef(&graph));
+std::string tensorflowInference::inferObject(cv::Mat t_inputImage) {
 
-    std::unique_ptr<tensorflow::Session> session(
-            tensorflow::NewSession(tensorflow::SessionOptions()));
-    TF_RETURN_IF_ERROR(session->Create(graph));
-    TF_RETURN_IF_ERROR(session->Run({inputs}, {output_name}, {}, &out_tensors));
+    this->m_inputImage = t_inputImage;
+    this->m_outputBoxesImage = t_inputImage;
+    this->m_withInputImage = t_inputImage.cols;
+    this->m_heightInputImage = t_inputImage.rows;
 
-
-    *inputTensor = out_tensors[0];
-
-    return Status::OK();
-
-}
-
-std::string tensorflowInference::inferObject(cv::Mat inputImage) {
-
-    const Tensor resized_tensor = MatToTensor(inputImage);
+    const Tensor resized_tensor = MatToTensor(t_inputImage);
     std::vector<Tensor> outputs;
 
 
-    Status run_status = session->Run({{input_layer, resized_tensor}},
-                                     {output_layer}, {}, &outputs);
+    Status run_status = m_session->Run({{m_input_layer, resized_tensor}},
+                                     {m_output_layer}, {}, &outputs);
 
     if (!run_status.ok()) {
         LOG(ERROR) << "Running model failed: " << run_status;
         return "";
     } else {
-        PrintTopLabels(outputs, this->pathToLabels);
-        return GetTopClass(outputs, this->pathToLabels);
+        PrintTopLabels(outputs, this->m_pathToLabels);
+        return "";
 
     }
 
@@ -230,12 +188,12 @@ std::string tensorflowInference::inferObject(cv::Mat inputImage) {
 
 tensorflow::Status tensorflowInference::initGraph() {
 
-    if(!initPreprocessParameters(model_name)){
+    if(!initPreprocessParameters(m_model_name)){
         return Status(tensorflow::error::FAILED_PRECONDITION, "Unable to compute the model architecture, check the model_name parameters");
 
     }
 
-    Status load_graph_status = LoadGraph(this->pathToGraph, &session);
+    Status load_graph_status = LoadGraph(this->m_pathToGraph, &m_session);
 
     if (!load_graph_status.ok()) {
         LOG(ERROR) << load_graph_status;
@@ -250,6 +208,18 @@ tensorflow::Status tensorflowInference::initGraph() {
 bool tensorflowInference::initPreprocessParameters(std::string modelName) {
 
     return true;
+}
+
+const cv::Mat &tensorflowInference::getM_outputBoxesImage() const {
+    return m_outputBoxesImage;
+}
+
+double tensorflowInference::getM_inferencethreshold() const {
+    return m_inferencethreshold;
+}
+
+void tensorflowInference::setM_inferencethreshold(double m_inferencethreshold) {
+    tensorflowInference::m_inferencethreshold = m_inferencethreshold;
 }
 
 
