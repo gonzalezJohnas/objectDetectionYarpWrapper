@@ -46,7 +46,7 @@ public:
     tensorflowInference(std::string pathGraph, std::string pathLabels, std::string model_name);
 
 
-    std::string inferObject(cv::Mat inputImage);
+    std::string inferObject(cv::Mat t_inputImage);
 
 
     /**
@@ -55,20 +55,47 @@ public:
      */
     tensorflow::Status initGraph();
 
+    /**
+     * Get the boxes image return by the DeepNetwork
+     * @return
+     */
+    const cv::Mat &getM_outputBoxesImage() const;
+
+    /**
+     * Get the current threshold for inference to consider valid classification
+     * @return
+     */
+    double getM_inferencethreshold() const;
+
+    /**
+     * Set the threshold for inference to consider valid classification
+     * @param m_inferencethreshold
+     */
+    void setM_inferencethreshold(double m_inferencethreshold);
+
 private:
-
-    std::unique_ptr<tensorflow::Session> session;
-    std::string pathToGraph;
-    std::string pathToLabels;
-    std::string input_layer;
-    std::string model_name;
-
-    std::string output_layer;
-    tensorflow::int32 input_width, input_height;
-    float input_mean;
+    // Parameters of the Deepnetworks graph
+    std::unique_ptr<tensorflow::Session> m_session;
+    std::string m_pathToGraph;
+    std::string m_pathToLabels;
+    std::string m_input_layer;
+    std::string m_model_name;
 
 
-    float input_std;
+    // Parameters for the output
+    std::vector<std::string> m_output_layer;
+    std::map<int,std::string> m_labels;
+
+    // Parameters for the Image input and Output
+    cv::Mat m_inputImage;
+    cv::Mat m_outputBoxesImage;
+
+    int m_withInputImage;
+    int m_heightInputImage;
+
+    // Parameters for the Inference
+    double m_inferencethreshold;
+
 
     /**
      * Takes a file name, and loads a list of labels from it, one per line, and
@@ -79,7 +106,7 @@ private:
      * @param found_label_count
      * @return Tensor status of the success of the process
      */
-    tensorflow::Status ReadLabelsFile(const std::string &file_name, std::vector<std::string> *result,
+    tensorflow::Status ReadLabelsFile(const std::string &file_name, std::map<int, std::string> *result,
                                       size_t *found_label_count);
 
     /**
@@ -92,12 +119,6 @@ private:
     tensorflow::Tensor MatToTensor(cv::Mat inputImage);
 
 
-    /**
-     * Normalize a Tensor by sutracting the mean and dividing by the scale
-     * @param inputTensor
-     * @return
-     */
-    tensorflow::Status normalizeTensor(tensorflow::Tensor *inputTensor);
 
     /**
      * Reads a model graph definition from disk, and creates a session object you can use to run it.
@@ -108,17 +129,7 @@ private:
     tensorflow::Status LoadGraph(const std::string &graph_file_name,
                                  std::unique_ptr<tensorflow::Session> *session);
 
-    /**
-     * Analyzes the output of the Inception graph to retrieve the highest scores and
-     * their positions in the tensor, which correspond to categories.
-     * @param outputs
-     * @param how_many_labels
-     * @param indices
-     * @param scores
-     * @return Tensor status of the success of the process
-     */
-    tensorflow::Status GetTopLabels(const std::vector<tensorflow::Tensor> &outputs, int how_many_labels,
-                        tensorflow::Tensor *indices, tensorflow::Tensor *scores);
+
 
     /**
      * Given the output of a model run, and the name of a file containing the labels
@@ -127,7 +138,7 @@ private:
      * @param labels_file_name
      * @return Tensor status of the success of the process
      */
-    tensorflow::Status PrintTopLabels(const std::vector<tensorflow::Tensor> &outputs,
+    tensorflow::Status PrintTopLabels(std::vector<tensorflow::Tensor> &outputs,
                           const std::string &labels_file_name);
 
     /**
