@@ -36,23 +36,26 @@ using namespace std;
 ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf) : RateThread(THRATE) {
     robot = "icub";
 
-        const string graphPath = rf.find("graph_path").asString().c_str();
-        const string labelsPath = rf.find("labels_path").asString().c_str();
-        const string modelName = rf.find("model_name").asString().c_str();
+    const string graphPath = rf.find("graph_path").asString().c_str();
+    const string labelsPath = rf.find("labels_path").asString().c_str();
+    const string modelName = rf.find("model_name").asString().c_str();
 
-    tensorflowObjectDetectionInference = std::unique_ptr<tensorflowInference>(new tensorflowInference(graphPath, labelsPath, modelName));
+    tensorflowObjectDetectionInference = std::unique_ptr<tensorflowInference>(
+            new tensorflowInference(graphPath, labelsPath, modelName));
 
 }
 
-ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, string _robot, string _configFile) : RateThread(THRATE) {
+ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, string _robot, string _configFile)
+        : RateThread(THRATE) {
     robot = _robot;
     configFile = _configFile;
 
-        const string graphPath = rf.find("graph_path").asString().c_str();
-        const string labelsPath = rf.find("labels_path").asString().c_str();
-        const string modelName = rf.find("model_name").asString().c_str();
+    const string graphPath = rf.find("graph_path").asString().c_str();
+    const string labelsPath = rf.find("labels_path").asString().c_str();
+    const string modelName = rf.find("model_name").asString().c_str();
 
-    tensorflowObjectDetectionInference = std::unique_ptr<tensorflowInference>(new tensorflowInference(graphPath, labelsPath, modelName));
+    tensorflowObjectDetectionInference = std::unique_ptr<tensorflowInference>(
+            new tensorflowInference(graphPath, labelsPath, modelName));
 
 }
 
@@ -67,6 +70,11 @@ bool ObjectDetectionThread::threadInit() {
         return false;  // unable to open; let RFModule know so that it won't run
     }
 
+    if (!outputImageBoxesPort.open(getName("/imageBoxes:o").c_str())) {
+        std::cout << ": unable to open port /imageBoxes:o " << std::endl;
+        return false;  // unable to open; let RFModule know so that it won't run
+    }
+
 
     if (!outputLabelPort.open(getName("/label:o").c_str())) {
         std::cout << ": unable to open port /label:o " << std::endl;
@@ -75,8 +83,8 @@ bool ObjectDetectionThread::threadInit() {
 
     tensorflow::Status initGraphStatus = tensorflowObjectDetectionInference->initGraph();
 
-    if( initGraphStatus != tensorflow::Status::OK()){
-        yError("%s",initGraphStatus.ToString().c_str());
+    if (initGraphStatus != tensorflow::Status::OK()) {
+        yError("%s", initGraphStatus.ToString().c_str());
         return false;
     }
 
@@ -102,8 +110,22 @@ void ObjectDetectionThread::setInputPortName(string InpPort) {
 
 void ObjectDetectionThread::run() {
 
-}
+    cv::Mat boxesMatImage = tensorflowObjectDetectionInference->getM_outputBoxesImage();
+    if (outputImageBoxesPort.getOutputCount() && !boxesMatImage.empty()) {
 
+
+        cv::imwrite("test.png", boxesMatImage);
+        IplImage outputIplBoxes = (IplImage) boxesMatImage;
+
+        outputBoxesImage = outputImageBoxesPort.prepare() ;
+        outputBoxesImage.wrapIplImage(&outputIplBoxes);
+        outputImageBoxesPort.write();
+
+
+    }
+
+
+}
 
 void ObjectDetectionThread::threadRelease() {
     // nothing
@@ -120,7 +142,7 @@ std::string ObjectDetectionThread::predictTopClass() {
         cv::Mat inputImageMat = cv::cvarrToMat(inputImage->getIplImage());
         cv::cvtColor(inputImageMat, inputImageMat, CV_BGR2RGB);
 
-       return tensorflowObjectDetectionInference->inferObject(inputImageMat);
+        return tensorflowObjectDetectionInference->inferObject(inputImageMat);
 
     }
 
@@ -136,6 +158,14 @@ void ObjectDetectionThread::writeToLabelPort(string label) {
     outputLabelPort.write();
 
 
+}
+
+void ObjectDetectionThread::setInferenceThreshold(const double t_thresholdInference) {
+    this->tensorflowObjectDetectionInference->setM_inferencethreshold(t_thresholdInference);
+}
+
+double ObjectDetectionThread::getInferenceThreshold() {
+    this->tensorflowObjectDetectionInference->getM_inferencethreshold();
 }
 
 
