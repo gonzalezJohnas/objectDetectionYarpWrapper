@@ -5,7 +5,7 @@
 #include <tiff.h>
 
 #include <utility>
-#include "../include/iCub/tensorflowInference.h"
+#include "iCub/tensorflowObjectDetection.h"
 
 // These are all common classes it's handy to reference with no namespace.
 using tensorflow::Flag;
@@ -15,7 +15,20 @@ using tensorflow::string;
 using tensorflow::int32;
 using tensorflow::TensorShape;
 
-tensorflowInference::tensorflowInference(std::string t_pathGraph, std::string t_pathLabels,  std::string t_model_name) {
+
+
+inline string replaceChar(string str, char ch1, char ch2) {
+    for (int i = 0; i < str.length(); ++i) {
+        char tmp = str[i];
+        if (str[i] == ch1)
+            str[i] = ch2;
+    }
+
+    return str;
+}
+
+
+tensorflowObjectDetection::tensorflowObjectDetection(std::string t_pathGraph, std::string t_pathLabels,  std::string t_model_name) {
 
     this->m_pathToGraph = std::move(t_pathGraph);
     this->m_pathToLabels = std::move(t_pathLabels);
@@ -24,8 +37,7 @@ tensorflowInference::tensorflowInference(std::string t_pathGraph, std::string t_
     this->m_output_layer =  { "detection_boxes:0", "detection_scores:0", "detection_classes:0", "num_detections:0" };
     this->m_model_name = std::move(t_model_name);
 
-    this->inferenceFinished = false;
-    this->m_inferencethreshold = 0.5;
+    this->m_detectionThreshold = 0.5;
 
     size_t label_count;
     Status read_labels_status = ReadLabelsFile(m_pathToLabels, &m_labels, &label_count);
@@ -35,13 +47,18 @@ tensorflowInference::tensorflowInference(std::string t_pathGraph, std::string t_
         LOG(ERROR) << read_labels_status;
     }
 
+
+
 }
 
 
 /************************************* CORE FUNCTIONS  *************************************/
 
 
-Status tensorflowInference::ReadLabelsFile(const string &file_name,  std::map<int, std::string> *result,
+
+
+
+Status tensorflowObjectDetection::ReadLabelsFile(const string &file_name,  std::map<int, std::string> *result,
                                            size_t *found_label_count) {
     std::ifstream file(file_name);
     if (!file) {
@@ -54,7 +71,7 @@ Status tensorflowInference::ReadLabelsFile(const string &file_name,  std::map<in
     while (std::getline(file, line)) {
         if(line.find("id:") != std::string::npos){
 
-            std::size_t pos = line.find(":");
+            std::size_t pos = line.find(':');
             const char*  tmp = line.substr(pos+1).c_str();
             id = atoi(tmp);
         }
@@ -62,8 +79,9 @@ Status tensorflowInference::ReadLabelsFile(const string &file_name,  std::map<in
 
         if(line.find("display_name") != std::string::npos){
 
-            std::size_t pos = line.find(":");      // position of "live" in str
-            std::string className = line.substr (pos+1);     // get from "live" to the end
+            std::size_t pos = line.find(':');
+            std::string className = line.substr(pos+3);
+            className = replaceChar(className, '"', ' ');
             result->insert(std::pair<int,string>(id, className));
 
 
@@ -73,7 +91,7 @@ Status tensorflowInference::ReadLabelsFile(const string &file_name,  std::map<in
     return Status::OK();
 }
 
-tensorflow::Tensor tensorflowInference::MatToTensor(cv::Mat inputImage) {
+tensorflow::Tensor tensorflowObjectDetection::MatToTensor(cv::Mat inputImage) {
 
     const int inputImageHeight =  inputImage.rows;
     const int inputImageWidth =  inputImage.cols;
@@ -100,7 +118,7 @@ tensorflow::Tensor tensorflowInference::MatToTensor(cv::Mat inputImage) {
 
 }
 
-tensorflow::Status tensorflowInference::LoadGraph(const std::string &graph_file_name, std::unique_ptr<tensorflow::Session> *session) {
+tensorflow::Status tensorflowObjectDetection::LoadGraph(const std::string &graph_file_name, std::unique_ptr<tensorflow::Session> *session) {
     tensorflow::GraphDef graph_def;
     Status load_graph_status =
             ReadBinaryProto(tensorflow::Env::Default(), graph_file_name, &graph_def);
@@ -116,7 +134,7 @@ tensorflow::Status tensorflowInference::LoadGraph(const std::string &graph_file_
     return Status::OK();
 }
 
-tensorflow::Status tensorflowInference::PrintTopLabels(std::vector<tensorflow::Tensor> &outputs,
+tensorflow::Status tensorflowObjectDetection::PrintTopLabels(std::vector<tensorflow::Tensor> &outputs,
                                                        const std::string &labels_file_name) {
 
 
@@ -128,21 +146,25 @@ tensorflow::Status tensorflowInference::PrintTopLabels(std::vector<tensorflow::T
 
     LOG(ERROR) << "number of detection:" << num_detections << std::endl;
 
-
+    m_objectsDetected.clear();
     for(size_t i = 0; i < num_detections(0) && i < 20;++i)
     {
-        if(scores(i) > m_inferencethreshold)
+        if(scores(i) > m_detectionThreshold)
         {
-            int x1 = m_withInputImage*boxes(0,i,1);
-            int y1 = m_heightInputImage*boxes(0,i,0);
+            int boxRectangleX1 = m_widthInputImage*boxes(0,i,1);
+            int boxRectangleY1 = m_heightInputImage*boxes(0,i,0);
 
-            int x2 = m_withInputImage*boxes(0,i,3);
-            int y2 = m_heightInputImage*boxes(0,i,2);
+            int boxRectangleX2 = m_widthInputImage*boxes(0,i,3);
+            int boxRectangleY2 = m_heightInputImage*boxes(0,i,2);
+
+            const Box boxCoordinates = {{boxRectangleX1, boxRectangleY1, boxRectangleX2, boxRectangleY2}, scores(i)};
+            const string labelName = m_labels[classes(i)];
 
 
+            m_objectsDetected.insert(std::pair<string, Box>( labelName, boxCoordinates ));
 
-            LOG(ERROR) << i << ",score:" << scores(i)<< ",classID:" << classes(i) << ", "<< ",class:" << m_labels[classes(i)] << ",box:" << "," << x1 << "," << y1 << "," << x2 << "," << y2;
-            rectangle(m_inputImage, cvPoint(x1, y1), cvPoint(x2, y2), CvScalar(classes(i)*2 , 100 , 255));
+
+            LOG(INFO) << i << ",score:" << scores(i)<< ",classID:" << classes(i) << ", "<< ",class:" << m_labels[classes(i)] << ",box:" << "," << boxRectangleX1 << "," << boxRectangleY1 << "," << boxRectangleX2 << "," << boxRectangleY2;
 
         }
     }
@@ -153,19 +175,23 @@ tensorflow::Status tensorflowInference::PrintTopLabels(std::vector<tensorflow::T
 
 
 
-std::string  tensorflowInference::GetTopClass(const std::vector<tensorflow::Tensor> &outputs,
-                                                       const std::string &labels_file_name) {
-    return "";
+std::string  tensorflowObjectDetection::getDetectedObjectToString() {
+
+    string objectsDetected;
+    for (auto &it : m_objectsDetected) {
+        objectsDetected.append(it.first + " : " + boxToString(it.second) +" ; ");
+    }
+
+        return objectsDetected;
 }
 
 
 
 
-std::string tensorflowInference::inferObject(cv::Mat t_inputImage) {
+std::string tensorflowObjectDetection::inferObject(cv::Mat t_inputImage) {
 
     this->m_inputImage = t_inputImage;
-    this->m_outputBoxesImage = t_inputImage;
-    this->m_withInputImage = t_inputImage.cols;
+    this->m_widthInputImage = t_inputImage.cols;
     this->m_heightInputImage = t_inputImage.rows;
 
     const Tensor resized_tensor = MatToTensor(t_inputImage);
@@ -180,9 +206,8 @@ std::string tensorflowInference::inferObject(cv::Mat t_inputImage) {
         return "";
     } else {
         PrintTopLabels(outputs, this->m_pathToLabels);
-        this->inferenceFinished = true;
 
-        return "";
+        return getDetectedObjectToString();
 
     }
 
@@ -190,7 +215,7 @@ std::string tensorflowInference::inferObject(cv::Mat t_inputImage) {
 
 }
 
-tensorflow::Status tensorflowInference::initGraph() {
+tensorflow::Status tensorflowObjectDetection::initGraph() {
 
     if(!initPreprocessParameters(m_model_name)){
         return Status(tensorflow::error::FAILED_PRECONDITION, "Unable to compute the model architecture, check the model_name parameters");
@@ -209,21 +234,18 @@ tensorflow::Status tensorflowInference::initGraph() {
 
 }
 
-bool tensorflowInference::initPreprocessParameters(std::string modelName) {
+bool tensorflowObjectDetection::initPreprocessParameters(std::string modelName) {
 
     return true;
 }
 
-const cv::Mat &tensorflowInference::getM_outputBoxesImage() const {
-    return m_outputBoxesImage;
+
+double tensorflowObjectDetection::getM_detecttionThreshold() const {
+    return m_detectionThreshold;
 }
 
-double tensorflowInference::getM_inferencethreshold() const {
-    return m_inferencethreshold;
-}
-
-void tensorflowInference::setM_inferencethreshold(double m_inferencethreshold) {
-    tensorflowInference::m_inferencethreshold = m_inferencethreshold;
+void tensorflowObjectDetection::setM_detectionThreshold(double m_inferencethreshold) {
+    tensorflowObjectDetection::m_detectionThreshold = m_inferencethreshold;
 }
 
 

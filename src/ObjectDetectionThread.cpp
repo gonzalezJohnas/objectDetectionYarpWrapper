@@ -22,6 +22,8 @@
  * @brief Implementation of the eventDriven thread (see ObjectDetectionThread.h).
  */
 
+#include <utility>
+
 #include "../include/iCub/ObjectDetectionThread.h"
 
 using namespace yarp::dev;
@@ -40,22 +42,23 @@ ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf) : Rat
     const string labelsPath = rf.find("labels_path").asString().c_str();
     const string modelName = rf.find("model_name").asString().c_str();
 
-    tensorflowObjectDetectionInference = std::unique_ptr<tensorflowInference>(
-            new tensorflowInference(graphPath, labelsPath, modelName));
+    tfObjectDetection = std::unique_ptr<tensorflowObjectDetection>(
+            new tensorflowObjectDetection(graphPath, labelsPath, modelName));
+
 
 }
 
 ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, string _robot, string _configFile)
         : RateThread(THRATE) {
-    robot = _robot;
-    configFile = _configFile;
+    robot = std::move(_robot);
+    configFile = std::move(_configFile);
 
     const string graphPath = rf.find("graph_path").asString().c_str();
     const string labelsPath = rf.find("labels_path").asString().c_str();
     const string modelName = rf.find("model_name").asString().c_str();
 
-    tensorflowObjectDetectionInference = std::unique_ptr<tensorflowInference>(
-            new tensorflowInference(graphPath, labelsPath, modelName));
+    tfObjectDetection = std::unique_ptr<tensorflowObjectDetection>(
+            new tensorflowObjectDetection(graphPath, labelsPath, modelName));
 
 }
 
@@ -81,12 +84,15 @@ bool ObjectDetectionThread::threadInit() {
         return false;  // unable to open; let RFModule know so that it won't run
     }
 
-    tensorflow::Status initGraphStatus = tensorflowObjectDetectionInference->initGraph();
+    tensorflow::Status initGraphStatus = tfObjectDetection->initGraph();
 
     if (initGraphStatus != tensorflow::Status::OK()) {
         yError("%s", initGraphStatus.ToString().c_str());
         return false;
     }
+
+    outputBoxesImage = new ImageOf<PixelRgb>;
+
 
     yInfo("Initialization of the processing thread correctly ended");
 
@@ -94,7 +100,7 @@ bool ObjectDetectionThread::threadInit() {
 }
 
 void ObjectDetectionThread::setName(string str) {
-    this->name = str;
+    this->name = std::move(str);
 }
 
 
@@ -110,25 +116,33 @@ void ObjectDetectionThread::setInputPortName(string InpPort) {
 
 void ObjectDetectionThread::run() {
 
-    cv::Mat boxesMatImage = tensorflowObjectDetectionInference->getM_outputBoxesImage();
-    if (outputImageBoxesPort.getOutputCount() && !boxesMatImage.empty()) {
+
+    if (outputImageBoxesPort.getOutputCount() && inputImagePort.getInputCount()) {
+
+        yarp::sig::ImageOf<yarp::sig::PixelRgb> *inputImage = inputImagePort.read(true);
+        if (inputImage != nullptr) {
 
 
-        cv::imwrite("test.png", boxesMatImage);
-        IplImage outputIplBoxes = (IplImage) boxesMatImage;
+            auto *outputIplBoxes = (IplImage *) inputImage->getIplImage();
+            drawDetectedBoxes(outputIplBoxes);
 
-        outputBoxesImage = outputImageBoxesPort.prepare() ;
-        outputBoxesImage.wrapIplImage(&outputIplBoxes);
-        outputImageBoxesPort.write();
+            inputImage = &outputImageBoxesPort.prepare();
+            inputImage->resize(outputIplBoxes->width, outputIplBoxes->height);
 
+            inputImage->wrapIplImage(outputIplBoxes);
+            outputImageBoxesPort.write();
+
+        }
 
     }
 
+    outputImageBoxesPort.write();
 
 }
 
 void ObjectDetectionThread::threadRelease() {
-    // nothing
+    outputImageBoxesPort.interrupt();
+    outputImageBoxesPort.close();
 
 }
 
@@ -138,11 +152,11 @@ std::string ObjectDetectionThread::predictTopClass() {
     std::vector<tensorflow::Tensor> outputs;
 
 
-    if (inputImage != NULL) {
+    if (inputImage != nullptr) {
         cv::Mat inputImageMat = cv::cvarrToMat(inputImage->getIplImage());
         cv::cvtColor(inputImageMat, inputImageMat, CV_BGR2RGB);
 
-        return tensorflowObjectDetectionInference->inferObject(inputImageMat);
+        return tfObjectDetection->inferObject(inputImageMat);
 
     }
 
@@ -160,12 +174,33 @@ void ObjectDetectionThread::writeToLabelPort(string label) {
 
 }
 
-void ObjectDetectionThread::setInferenceThreshold(const double t_thresholdInference) {
-    this->tensorflowObjectDetectionInference->setM_inferencethreshold(t_thresholdInference);
+void ObjectDetectionThread::setDetectionThreshold(const double t_thresholdInference) {
+    this->tfObjectDetection->setM_detectionThreshold(t_thresholdInference);
 }
 
-double ObjectDetectionThread::getInferenceThreshold() {
-    this->tensorflowObjectDetectionInference->getM_inferencethreshold();
+double ObjectDetectionThread::getDetectionThreshold() {
+    this->tfObjectDetection->getM_detecttionThreshold();
 }
+
+void ObjectDetectionThread::drawDetectedBoxes(IplImage *t_imageToDraw) {
+
+    cv::Point originBox, endBox;
+
+    for (auto &it : tfObjectDetection->m_objectsDetected) {
+
+        originBox = cvPoint(it.second.coordinate[0], it.second.coordinate[1]);
+        endBox = cvPoint(it.second.coordinate[2], it.second.coordinate[3]);
+        cvRectangle(t_imageToDraw, originBox, endBox, cvScalar(255, 0, 0));
+    }
+
+
+}
+
+
+bool ObjectDetectionThread::processing() {
+    // here goes the processing...
+    return true;
+}
+
 
 

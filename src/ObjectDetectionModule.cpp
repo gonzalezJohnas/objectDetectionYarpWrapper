@@ -94,12 +94,11 @@ bool ObjectDetectionModule::configure(yarp::os::ResourceFinder &rf) {
     inferThread->setName(handlerPortName);
 
 
-    if(!inferThread->threadInit()){
+    if(!inferThread->start()){
         yError("Unable to initialize the thread");
         return false;
     }
 
-    inferThread->start();
 
     attach(handlerPort);                  // attach to port
 
@@ -160,14 +159,17 @@ bool ObjectDetectionModule::respond(const Bottle &command, Bottle &reply) {
 
                     case COMMAND_VOCAB_THRESHOLD:
                     {
-                        const double t_InferenceThreshold = command.get(2).asDouble();
-                        this->inferThread->setInferenceThreshold(t_InferenceThreshold);
+                        const double t_detectionThreshold = command.get(2).asDouble();
+                        this->inferThread->setDetectionThreshold(t_detectionThreshold);
+                        reply.addString("Set the detection threshold success");
                         ok = true;
+
                         break;
                     }
 
                     default:
                         cout << "received an unknown request after SET" << endl;
+                        ok = true;
                         break;
                 }
             }
@@ -184,11 +186,11 @@ bool ObjectDetectionModule::respond(const Bottle &command, Bottle &reply) {
                         if(!predictedClass.empty()){
                             inferThread->writeToLabelPort(predictedClass);
                             reply.addVocab(Vocab::encode("many"));
-                            reply.addString(predictedClass);
+                            reply.addString("Run graph success");
                         }
 
                         else{
-                            reply.addString("Unable to run the graph");
+                            reply.addString("No detection found");
                         }
 
                         ok = true;
@@ -197,7 +199,7 @@ bool ObjectDetectionModule::respond(const Bottle &command, Bottle &reply) {
 
                     case COMMAND_VOCAB_THRESHOLD :
                     {
-                        const double t_thresholdCurrentValue = this->inferThread->getInferenceThreshold();
+                        const double t_thresholdCurrentValue = this->inferThread->getDetectionThreshold();
                         reply.addDouble(t_thresholdCurrentValue);
                         ok = true;
                         break;

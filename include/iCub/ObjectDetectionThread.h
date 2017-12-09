@@ -37,7 +37,7 @@
 #include <fstream>
 #include <time.h>
 
-#include "../iCub/tensorflowInference.h"
+#include "tensorflowObjectDetection.h"
 
 
 class ObjectDetectionThread : public yarp::os::RateThread {
@@ -52,12 +52,12 @@ private:
     std::string labels_path;        // path to the associated graph labels
 
 
-    std::unique_ptr<tensorflowInference> tensorflowObjectDetectionInference;
+    std::unique_ptr<tensorflowObjectDetection> tfObjectDetection;
 
-    yarp::sig::ImageOf<yarp::sig::PixelBgr> outputBoxesImage;
+    yarp::sig::ImageOf<yarp::sig::PixelRgb>* outputBoxesImage;
 
     yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > inputImagePort;
-    yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelBgr> > outputImageBoxesPort;
+    yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > outputImageBoxesPort;
     yarp::os::BufferedPort<yarp::os::Bottle> outputLabelPort;
 
 public:
@@ -120,15 +120,22 @@ public:
 
 
     /**
-     * Set inference threshold for ObjectDetection DeepNetwork
+     * Set detection threshold for ObjectDetection DeepNetwork
      * @param t_thresholdInference
      */
-    void setInferenceThreshold(const double t_thresholdInference);
+    void setDetectionThreshold(const double t_thresholdInference);
 
     /**
-    * Get the inference threshold for ObjectDetection DeepNetwork
+    * Get the detection threshold for ObjectDetection DeepNetwork
     */
-    double getInferenceThreshold();
+    double getDetectionThreshold();
+
+    void drawDetectedBoxes(IplImage* t_imageToDraw);
+
+    /**
+     * method for the processing in the ratethread
+     **/
+    bool processing();
 
 
 };
