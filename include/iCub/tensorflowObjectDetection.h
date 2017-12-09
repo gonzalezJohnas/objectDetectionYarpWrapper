@@ -35,20 +35,42 @@
 #include <opencv2/core/mat.hpp>
 #include <opencv/cv.hpp>
 
-class tensorflowInference {
+struct Box
+{
+    int coordinate[4];
+    double probabilityDetection;
+};
+
+
+inline std::string boxToString(Box b) {
+    std::string boxToString;
+    boxToString.append(std::to_string(b.coordinate[0]) + " ");
+    boxToString.append(std::to_string(b.coordinate[1]) + " ");
+    boxToString.append(std::to_string(b.coordinate[2]) + " ");
+    boxToString.append(std::to_string(b.coordinate[3]) + " ");
+    boxToString.append(std::to_string(b.probabilityDetection));
+
+    return boxToString;
+}
+
+class tensorflowObjectDetection {
 public:
 
-    bool inferenceFinished;
-
+    // Output Map of the detected object convention coordinate boxes [x1, y1, x2, y2]
+    std::map<std::string, Box> m_objectsDetected;
 
     /**
      * Defautls constructor
      * @param pathGraph
      * @param pathLabels
      */
-    tensorflowInference(std::string pathGraph, std::string pathLabels, std::string model_name);
+    tensorflowObjectDetection(std::string pathGraph, std::string pathLabels, std::string model_name);
 
-
+    /**
+     * Execute forward pass on the load graph
+     * @param t_inputImage
+     * @return
+     */
     std::string inferObject(cv::Mat t_inputImage);
 
 
@@ -58,23 +80,19 @@ public:
      */
     tensorflow::Status initGraph();
 
-    /**
-     * Get the boxes image return by the DeepNetwork
-     * @return
-     */
-    const cv::Mat &getM_outputBoxesImage() const;
+
 
     /**
-     * Get the current threshold for inference to consider valid classification
+     * Get the current threshold for the lower bound  to consider valid classification
      * @return
      */
-    double getM_inferencethreshold() const;
+    double getM_detecttionThreshold() const;
 
     /**
-     * Set the threshold for inference to consider valid classification
+     * Set the threshold for the lower bound to consider valid classification
      * @param m_inferencethreshold
      */
-    void setM_inferencethreshold(double m_inferencethreshold);
+    void setM_detectionThreshold(double m_inferencethreshold);
 
 private:
     // Parameters of the Deepnetworks graph
@@ -91,13 +109,12 @@ private:
 
     // Parameters for the Image input and Output
     cv::Mat m_inputImage;
-    cv::Mat m_outputBoxesImage;
 
-    int m_withInputImage;
+    int m_widthInputImage;
     int m_heightInputImage;
 
     // Parameters for the Inference
-    double m_inferencethreshold;
+    double m_detectionThreshold;
 
 
     /**
@@ -147,12 +164,10 @@ private:
     /**
      * Given the output of a model run, and the name of a file containing the labels
      * this return the top class
-     * @param outputs
-     * @param labels_file_name
-     * @return Tensor status of the success of the process
+
+     * @return Format String of detected objects
      */
-    std::string GetTopClass(const std::vector<tensorflow::Tensor> &outputs,
-                                      const std::string &labels_file_name);
+    std::string getDetectedObjectToString();
 
 
     /**
@@ -162,7 +177,9 @@ private:
      * - Input images dimensions
      * @param modelName
      */
-    bool initPreprocessParameters(std::string modelName);;
+    bool initPreprocessParameters(std::string modelName);
+
+
 };
 
 
