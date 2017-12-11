@@ -39,6 +39,7 @@ struct Box
 {
     int coordinate[4];
     double probabilityDetection;
+
 };
 
 

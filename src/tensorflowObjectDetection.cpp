@@ -19,7 +19,6 @@ using tensorflow::TensorShape;
 
 inline string replaceChar(string str, char ch1, char ch2) {
     for (int i = 0; i < str.length(); ++i) {
-        char tmp = str[i];
         if (str[i] == ch1)
             str[i] = ch2;
     }

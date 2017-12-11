@@ -40,6 +40,12 @@
 #include "tensorflowObjectDetection.h"
 
 
+struct Color{
+    unsigned int red;
+    unsigned int green;
+    unsigned int blue;
+};
+
 class ObjectDetectionThread : public yarp::os::RateThread {
 private:
     bool result;                    //result of the processing
@@ -59,6 +65,8 @@ private:
     yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > inputImagePort;
     yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelRgb> > outputImageBoxesPort;
     yarp::os::BufferedPort<yarp::os::Bottle> outputLabelPort;
+
+    std::map<std::string, Color> objectsColor;
 
 public:
     /**
@@ -136,6 +144,10 @@ public:
      * method for the processing in the ratethread
      **/
     bool processing();
+
+    Color getObjectColor(std::string t_objectLabel);
+
+    Color getRandomColor();
 
 
 };
