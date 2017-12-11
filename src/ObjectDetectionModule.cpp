@@ -147,6 +147,9 @@ bool ObjectDetectionModule::respond(const Bottle &command, Bottle &reply) {
             {
                 reply.addVocab(Vocab::encode("many"));
                 reply.addString(helpMessage);
+                reply.addString("get label : Perform a forward pass on the loaded graph and output on label port the detected classes and their bouding boxes");
+                reply.addString("get threshold : Get the detection threshold value ");
+                reply.addString("set threshold : Set the detection threshold to consider valid recognition");
                 ok = true;
             }
             break;
