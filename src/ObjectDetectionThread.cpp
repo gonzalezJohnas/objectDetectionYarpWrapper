@@ -184,13 +184,17 @@ double ObjectDetectionThread::getDetectionThreshold() {
 
 void ObjectDetectionThread::drawDetectedBoxes(IplImage *t_imageToDraw) {
 
-    cv::Point originBox, endBox;
+    cv::Point originBox, endBox, displayText;
 
     for (auto &it : tfObjectDetection->m_objectsDetected) {
 
         originBox = cvPoint(it.second.coordinate[0], it.second.coordinate[1]);
         endBox = cvPoint(it.second.coordinate[2], it.second.coordinate[3]);
-        cvRectangle(t_imageToDraw, originBox, endBox, cvScalar(255, 0, 0));
+        const Color objectColor = getObjectColor(it.first);
+        cvRectangle(t_imageToDraw, originBox, endBox, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 3);
+
+        displayText = cvPoint(it.second.coordinate[0], it.second.coordinate[1] - 10);
+        cv::putText(cv::cvarrToMat(t_imageToDraw), it.first, displayText, CV_FONT_HERSHEY_TRIPLEX, 0.5, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 1);
     }
 
 
@@ -200,6 +204,27 @@ void ObjectDetectionThread::drawDetectedBoxes(IplImage *t_imageToDraw) {
 bool ObjectDetectionThread::processing() {
     // here goes the processing...
     return true;
+}
+
+Color ObjectDetectionThread::getObjectColor(std::string t_objectLabel) {
+
+    if(this->objectsColor.find(t_objectLabel) != this->objectsColor.end()){
+       return this->objectsColor.at(t_objectLabel);
+    }
+
+    const Color randomColor =  getRandomColor();
+    this->objectsColor.insert(std::pair<string, Color>(t_objectLabel,randomColor));
+
+    return randomColor;
+}
+
+Color ObjectDetectionThread::getRandomColor() {
+    const unsigned int redChannel = (0 + (rand() % static_cast<unsigned int>(255 - 0 + 1)));
+    const unsigned int greenChannel =  (0 + (rand() % static_cast<unsigned int>(255 - 0 + 1)));
+    const unsigned int blueChannel =  (0 + (rand() % static_cast<unsigned int>(255 - 0 + 1)));
+    const Color randomColor = {redChannel, greenChannel, blueChannel};
+
+    return randomColor;
 }
 
 
