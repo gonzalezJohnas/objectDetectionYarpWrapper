@@ -136,7 +136,7 @@ tensorflow::Status tensorflowObjectDetection::LoadGraph(const std::string &graph
 tensorflow::Status tensorflowObjectDetection::PrintTopLabels(std::vector<tensorflow::Tensor> &outputs,
                                                        const std::string &labels_file_name) {
 
-
+    int doublonDetection = 0;
 
     auto boxes = outputs[0].flat_outer_dims<float,3>();
     tensorflow::TTypes<float>::Flat scores = outputs[1].flat<float>();
@@ -156,9 +156,14 @@ tensorflow::Status tensorflowObjectDetection::PrintTopLabels(std::vector<tensorf
             int boxRectangleX2 = m_widthInputImage*boxes(0,i,3);
             int boxRectangleY2 = m_heightInputImage*boxes(0,i,2);
 
-            const Box boxCoordinates = {{boxRectangleX1, boxRectangleY1, boxRectangleX2, boxRectangleY2}, scores(i)};
-            const string labelName = m_labels[classes(i)];
+            string labelName = m_labels[classes(i)];
+            const Box boxCoordinates = {{boxRectangleX1, boxRectangleY1, boxRectangleX2, boxRectangleY2}, scores(i), labelName};
 
+            while(m_objectsDetected.find(labelName) != m_objectsDetected.end()){
+                doublonDetection++;
+                labelName = m_labels[classes(i)];
+                labelName.append(std::to_string(doublonDetection));
+            }
 
             m_objectsDetected.insert(std::pair<string, Box>( labelName, boxCoordinates ));
 
