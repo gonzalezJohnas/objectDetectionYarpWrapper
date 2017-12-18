@@ -38,13 +38,6 @@ tensorflowObjectDetection::tensorflowObjectDetection(std::string t_pathGraph, st
 
     this->m_detectionThreshold = 0.5;
 
-    size_t label_count;
-    Status read_labels_status = ReadLabelsFile(m_pathToLabels, &m_labels, &label_count);
-
-
-    if (!read_labels_status.ok()) {
-        LOG(ERROR) << read_labels_status;
-    }
 
 
 
@@ -57,8 +50,8 @@ tensorflowObjectDetection::tensorflowObjectDetection(std::string t_pathGraph, st
 
 
 
-Status tensorflowObjectDetection::ReadLabelsFile(const string &file_name,  std::map<int, std::string> *result,
-                                           size_t *found_label_count) {
+Status tensorflowObjectDetection::ReadCocoLabelsFile(const string &file_name, std::map<int, std::string> *result,
+                                                     size_t *found_label_count) {
     std::ifstream file(file_name);
     if (!file) {
         return tensorflow::errors::NotFound("Labels file ", file_name,
@@ -68,23 +61,50 @@ Status tensorflowObjectDetection::ReadLabelsFile(const string &file_name,  std::
     string line;
     int id;
     while (std::getline(file, line)) {
-        if(line.find("id:") != std::string::npos){
+        if (line.find("id:") != std::string::npos) {
 
             std::size_t pos = line.find(':');
-            const char*  tmp = line.substr(pos+1).c_str();
+            const char *tmp = line.substr(pos + 1).c_str();
             id = atoi(tmp);
         }
 
 
-        if(line.find("display_name") != std::string::npos){
+        if (line.find("display_name") != std::string::npos) {
 
             std::size_t pos = line.find(':');
-            std::string className = line.substr(pos+3);
+            std::string className = line.substr(pos + 3);
             className = replaceChar(className, '"', ' ');
-            result->insert(std::pair<int,string>(id, className));
+            result->insert(std::pair<int, string>(id, className));
 
 
         }
+    }
+
+    return Status::OK();
+}
+
+
+tensorflow::Status
+tensorflowObjectDetection::ReadOpenLabelsFile(const std::string &file_name, std::map<int, std::string> *result,
+                                              size_t *found_label_count) {
+    std::ifstream file(file_name);
+    if (!file) {
+        return tensorflow::errors::NotFound("Labels file ", file_name,
+                                            " not found.");
+    }
+    result->clear();
+    string line;
+    int id = 0;
+    while (std::getline(file, line)) {
+
+        std::size_t pos = line.find(',');
+        std::string className = line.substr(pos + 1);
+        className = replaceChar(className, '\'', '\0');
+        result->insert(std::pair<int, string>(id, className));
+
+        ++id;
+
+
     }
 
     return Status::OK();
@@ -239,8 +259,25 @@ tensorflow::Status tensorflowObjectDetection::initGraph() {
 }
 
 bool tensorflowObjectDetection::initPreprocessParameters(std::string modelName) {
+    Status read_labels_status;
+    size_t label_count;
 
-    return true;
+    if(modelName.find("coco") != string::npos){
+        read_labels_status = ReadCocoLabelsFile(m_pathToLabels, &m_labels, &label_count);
+        if (!read_labels_status.ok()) {
+            LOG(ERROR) << read_labels_status;
+
+        }
+    }
+
+    else if(modelName.find("open") != string::npos){
+        read_labels_status = ReadOpenLabelsFile(m_pathToLabels, &m_labels, &label_count);
+        if (!read_labels_status.ok()) {
+            LOG(ERROR) << read_labels_status;
+        }
+    }
+
+    return read_labels_status.ok();
 }
 
 
