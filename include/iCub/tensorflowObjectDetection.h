@@ -35,8 +35,7 @@
 #include <opencv2/core/mat.hpp>
 #include <opencv/cv.hpp>
 
-struct Box
-{
+struct Box {
     int coordinate[4];
     double probabilityDetection;
     std::string className;
@@ -127,8 +126,20 @@ private:
      * @param found_label_count
      * @return Tensor status of the success of the process
      */
-    tensorflow::Status ReadLabelsFile(const std::string &file_name, std::map<int, std::string> *result,
-                                      size_t *found_label_count);
+    tensorflow::Status ReadCocoLabelsFile(const std::string &file_name, std::map<int, std::string> *result,
+                                          size_t *found_label_count);
+
+    /**
+     * Takes a file name, and loads a list of labels from it, one per line, and
+     * returns a vector of the strings. It pads with empty strings so the length
+     * of the result is a multiple of 16, because our model expects that.
+     * @param file_name
+     * @param result
+     * @param found_label_count
+     * @return Tensor status of the success of the process
+     */
+    tensorflow::Status ReadOpenLabelsFile(const std::string &file_name, std::map<int, std::string> *result,
+                                          size_t *found_label_count);
 
     /**
      * Convert a Mat OpenCV object into a Tensor
