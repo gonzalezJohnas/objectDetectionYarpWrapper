@@ -1,0 +1,29 @@
+<application>
+    <name>ObjectDetection_Yarp-Wrapper</name>
+    <dependencies>
+        <port>/icub/cam/left/out</port>
+    </dependencies>
+    <module>
+        <name>ObjectDetection</name>
+        <parameters>--from objectDetection.ini</parameters>
+        <node>icub-cuda</node>
+    </module>
+
+    <module>
+        <name>yarpview</name>
+        <parameters>--name /objectDectorBoxes --synch</parameters>
+        <node>icub16</node>
+    </module>
+
+
+    <connection>
+        <from>/icub/cam/left/out</from>
+        <to>/ObjectDetectionInfer/imageRGB:i</to>
+        <protocol>tcp</protocol>
+    </connection>
+    <connection>
+        <from>/ObjectDetectionInfer/imageBoxes:o</from>
+        <to>/objectDectorBoxes</to>
+        <protocol>tcp</protocol>
+    </connection>
+</application>

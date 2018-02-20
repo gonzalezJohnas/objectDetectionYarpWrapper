@@ -32,8 +32,6 @@ tensorflowObjectDetection::tensorflowObjectDetection(std::string t_pathGraph, st
     this->m_pathToGraph = std::move(t_pathGraph);
     this->m_pathToLabels = std::move(t_pathLabels);
 
-    this->m_input_layer = "image_tensor:0";
-    this->m_output_layer =  { "detection_boxes:0", "detection_scores:0", "detection_classes:0", "num_detections:0" };
     this->m_model_name = std::move(t_model_name);
 
     this->m_detectionThreshold = 0.5;
@@ -214,9 +212,9 @@ std::string  tensorflowObjectDetection::getDetectedObjectToString() {
 
 std::string tensorflowObjectDetection::inferObject(cv::Mat t_inputImage) {
 
-    this->m_inputImage = t_inputImage;
     this->m_widthInputImage = t_inputImage.cols;
     this->m_heightInputImage = t_inputImage.rows;
+
 
     const Tensor resized_tensor = MatToTensor(t_inputImage);
     std::vector<Tensor> outputs;
@@ -226,7 +224,7 @@ std::string tensorflowObjectDetection::inferObject(cv::Mat t_inputImage) {
                                      {m_output_layer}, {}, &outputs);
 
     if (!run_status.ok()) {
-        LOG(ERROR) << "Running model failed: " << run_status;
+        LOG(ERROR) << "Running model failed: " << run_status.error_message();
         return "";
     } else {
         PrintTopLabels(outputs, this->m_pathToLabels);
@@ -254,6 +252,9 @@ tensorflow::Status tensorflowObjectDetection::initGraph() {
     }
 
 
+
+
+
     return Status::OK();
 
 }
@@ -265,9 +266,13 @@ bool tensorflowObjectDetection::initPreprocessParameters(std::string modelName) 
     if(modelName.find("coco") != string::npos){
         read_labels_status = ReadCocoLabelsFile(m_pathToLabels, &m_labels, &label_count);
         if (!read_labels_status.ok()) {
-            LOG(ERROR) << read_labels_status;
+            LOG(ERROR) << read_labels_status.error_message();
 
         }
+        this->m_input_layer = "image_tensor:0";
+
+        this->m_output_layer =  { "detection_boxes:0", "detection_scores:0", "detection_classes:0", "num_detections:0" };
+
     }
 
     else if(modelName.find("open") != string::npos){
@@ -275,6 +280,10 @@ bool tensorflowObjectDetection::initPreprocessParameters(std::string modelName) 
         if (!read_labels_status.ok()) {
             LOG(ERROR) << read_labels_status;
         }
+
+        this->m_input_layer = "image_tensor:0";
+
+        this->m_output_layer =  { "detection_boxes:0", "detection_scores:0", "detection_classes:0", "num_detections:0" };
     }
 
     return read_labels_status.ok();
