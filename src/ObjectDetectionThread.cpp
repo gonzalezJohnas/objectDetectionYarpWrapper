@@ -44,6 +44,7 @@ ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf) : Rat
     labelsPath = rf.find("labels_path").asString().c_str();
     modelName = rf.find("model_name").asString().c_str();
 
+
     tfObjectDetection = std::unique_ptr<tensorflowObjectDetection>(
             new tensorflowObjectDetection(graphPath, labelsPath, modelName));
 
@@ -60,12 +61,24 @@ ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, strin
     labelsPath = rf.find("labels_path").asString().c_str();
     modelName = rf.find("model_name").asString().c_str();
 
+}
+
+ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, string _robot, string _configFile)
+        : RateThread(THRATE) {
+    robot = std::move(_robot);
+    configFile = std::move(_configFile);
+
+    const string graphPath = rf.find("graph_path").asString().c_str();
+    const string labelsPath = rf.find("labels_path").asString().c_str();
+    const string modelName = rf.find("model_name").asString().c_str();
+
     tfObjectDetection = std::unique_ptr<tensorflowObjectDetection>(
             new tensorflowObjectDetection(graphPath, labelsPath, modelName));
 
     runRealTime = rf.check("realTime",
                            Value("false"),
                            "Run the module in realTime (boolean)").asBool();
+
 
 }
 
@@ -121,12 +134,14 @@ std::string ObjectDetectionThread::getName(const char *p) {
 
 void ObjectDetectionThread::run() {
 
-    if(runRealTime){
+    if (runRealTime) {
         predictTopClass();
         sendImageBoxesDetected();
     }
-
 }
+
+
+
 
 void ObjectDetectionThread::threadRelease() {
     outputImageBoxesPort.interrupt();
@@ -179,7 +194,8 @@ void ObjectDetectionThread::drawDetectedBoxes(IplImage *t_imageToDraw) {
         originBox = cvPoint(it.second.coordinate[0], it.second.coordinate[1]);
         endBox = cvPoint(it.second.coordinate[2], it.second.coordinate[3]);
         const Color objectColor = getObjectColor(it.second.className);
-        cvRectangle(t_imageToDraw, originBox, endBox, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 2);
+
+        cvRectangle(t_imageToDraw, originBox, endBox, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 3);
 
         displayText = cvPoint(it.second.coordinate[0], it.second.coordinate[1] + 15);
         cv::putText(cv::cvarrToMat(t_imageToDraw), it.first, displayText, CV_FONT_HERSHEY_TRIPLEX, 0.5, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 1);

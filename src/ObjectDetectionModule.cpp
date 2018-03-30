@@ -189,6 +189,7 @@ bool ObjectDetectionModule::respond(const Bottle &command, Bottle &reply) {
                         if(!predictedClass.empty()){
                             inferThread->writeToLabelPort(predictedClass);
                             inferThread->sendImageBoxesDetected();
+
                             reply.addVocab(Vocab::encode("many"));
                             reply.addString("Run graph success");
                         }

@@ -57,6 +57,7 @@ private:
     std::string modelName;        // path to the associated graph labels
 
 
+
     std::unique_ptr<tensorflowObjectDetection> tfObjectDetection;
 
     yarp::sig::ImageOf<yarp::sig::PixelRgb>* outputBoxesImage;
@@ -73,31 +74,38 @@ public:
     */
     explicit ObjectDetectionThread(yarp::os::ResourceFinder &rf);
 
+
     /**
     * constructor 
     * @param robotname name of the robot
     */
     ObjectDetectionThread(yarp::os::ResourceFinder &rf, std::string robotname);
 
+
     /**
      * destructor
      */
     ~ObjectDetectionThread() override;
+
 
     /**
     *  initialises the thread
     */
     bool threadInit() override;
 
+
     /**
     *  correctly releases the thread
     */
     void threadRelease() override;
 
+
     /**
     *  active part of the thread
     */
     void run() override;
+
+
 
     /**
     * function that sets the rootname of all the ports that are going to be created by the thread
@@ -128,6 +136,7 @@ public:
      */
     void setDetectionThreshold(double t_thresholdInference);
 
+
     /**
     * Get the detection threshold for ObjectDetection DeepNetwork
     */
@@ -143,6 +152,7 @@ public:
 
 
     /**
+
      * method for the processing in the ratethread
      **/
     bool processing();
