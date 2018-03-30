@@ -193,7 +193,7 @@ void ObjectDetectionThread::drawDetectedBoxes(IplImage *t_imageToDraw) {
         const Color objectColor = getObjectColor(it.second.className);
         cvRectangle(t_imageToDraw, originBox, endBox, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 3);
 
-        displayText = cvPoint(it.second.coordinate[0], it.second.coordinate[1] - 6);
+        displayText = cvPoint(it.second.coordinate[0], it.second.coordinate[1] + 15);
         cv::putText(cv::cvarrToMat(t_imageToDraw), it.first, displayText, CV_FONT_HERSHEY_TRIPLEX, 0.5, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 1);
     }
 

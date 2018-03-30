@@ -4,7 +4,7 @@
         <port>/icub/cam/left/out</port>
     </dependencies>
     <module>
-        <name>ObjectDetection</name>
+        <name>objectDetectionYarpWrapper</name>
         <parameters>--from objectDetection.ini</parameters>
         <node>icub-cuda</node>
     </module>
