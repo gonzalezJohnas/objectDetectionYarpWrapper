@@ -163,7 +163,7 @@ tensorflow::Status tensorflowObjectDetection::PrintTopLabels(std::vector<tensorf
 
     LOG(ERROR) << "number of detection:" << num_detections << std::endl;
 
-    m_objectsDetected.clear();
+    //m_objectsDetected.clear();
     for(size_t i = 0; i < num_detections(0) && i < 20;++i)
     {
         if(scores(i) > m_detectionThreshold)
@@ -289,6 +289,10 @@ bool tensorflowObjectDetection::initPreprocessParameters(std::string modelName) 
     return read_labels_status.ok();
 }
 
+
+void tensorflowObjectDetection::clearSetOfObject(){
+	this->m_objectsDetected.clear();
+}
 
 double tensorflowObjectDetection::getM_detecttionThreshold() const {
     return m_detectionThreshold;

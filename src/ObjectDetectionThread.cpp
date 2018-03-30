@@ -31,7 +31,7 @@ using namespace yarp::os;
 using namespace yarp::sig;
 using namespace std;
 
-#define THRATE 100 //ms
+#define THRATE 400 //ms
 
 //********************interactionEngineRatethread******************************************************
 
@@ -53,20 +53,12 @@ ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf) : Rat
                            "Run the module in realTime (boolean)").asBool();
 }
 
+
+
 ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, string _robot)
         : RateThread(THRATE) {
     robot = std::move(_robot);
-
-    graphPath = rf.find("graph_path").asString().c_str();
-    labelsPath = rf.find("labels_path").asString().c_str();
-    modelName = rf.find("model_name").asString().c_str();
-
-}
-
-ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, string _robot, string _configFile)
-        : RateThread(THRATE) {
-    robot = std::move(_robot);
-    configFile = std::move(_configFile);
+   
 
     const string graphPath = rf.find("graph_path").asString().c_str();
     const string labelsPath = rf.find("labels_path").asString().c_str();
@@ -133,11 +125,20 @@ std::string ObjectDetectionThread::getName(const char *p) {
 
 
 void ObjectDetectionThread::run() {
+    
 
-    if (runRealTime) {
-        predictTopClass();
-        sendImageBoxesDetected();
+    if (runRealTime && this->isRunning()) {
+        const string predictedClass = predictTopClass();
+
+        this->writeToLabelPort(predictedClass);
+        this->sendImageBoxesDetected();
+
+        yInfo("Run graph success");
+        
+
+       
     }
+    
 }
 
 
@@ -147,13 +148,15 @@ void ObjectDetectionThread::threadRelease() {
     outputImageBoxesPort.interrupt();
     outputImageBoxesPort.close();
 
+    inputImagePort.interrupt();
+    inputImagePort.close();
+
+
 }
 
 std::string ObjectDetectionThread::predictTopClass() {
 
-    yarp::sig::ImageOf<yarp::sig::PixelRgb> *inputImage = inputImagePort.read(true);
-    std::vector<tensorflow::Tensor> outputs;
-
+    yarp::sig::ImageOf<yarp::sig::PixelRgb> *inputImage = inputImagePort.read();
 
     if (inputImage != nullptr) {
         cv::Mat inputImageMat = cv::cvarrToMat(inputImage->getIplImage());
@@ -197,8 +200,8 @@ void ObjectDetectionThread::drawDetectedBoxes(IplImage *t_imageToDraw) {
 
         cvRectangle(t_imageToDraw, originBox, endBox, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 3);
 
-        displayText = cvPoint(it.second.coordinate[0], it.second.coordinate[1] + 15);
-        cv::putText(cv::cvarrToMat(t_imageToDraw), it.first, displayText, CV_FONT_HERSHEY_TRIPLEX, 0.5, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 1);
+        displayText = cvPoint(it.second.coordinate[0] + 5, it.second.coordinate[1] + 15);
+        cv::putText(cv::cvarrToMat(t_imageToDraw), it.first, displayText, CV_FONT_HERSHEY_TRIPLEX, 1.5, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 3);
     }
 
 
@@ -235,7 +238,7 @@ void ObjectDetectionThread::sendImageBoxesDetected() {
 
     if (outputImageBoxesPort.getOutputCount() && inputImagePort.getInputCount()) {
 
-        yarp::sig::ImageOf<yarp::sig::PixelRgb> *inputImage = inputImagePort.read(true);
+        yarp::sig::ImageOf<yarp::sig::PixelRgb> *inputImage = inputImagePort.read();
         if (inputImage != nullptr) {
 
 
@@ -247,6 +250,9 @@ void ObjectDetectionThread::sendImageBoxesDetected() {
 
             inputImage->wrapIplImage(outputIplBoxes);
             outputImageBoxesPort.write();
+            
+            this->tfObjectDetection->clearSetOfObject();
+
 
         }
 

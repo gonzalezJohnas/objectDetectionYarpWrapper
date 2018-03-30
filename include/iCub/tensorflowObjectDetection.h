@@ -94,6 +94,9 @@ public:
      */
     void setM_detectionThreshold(double m_inferencethreshold);
 
+    
+    void clearSetOfObject();
+
 private:
     // Parameters of the Deepnetworks graph
     std::unique_ptr<tensorflow::Session> m_session;
