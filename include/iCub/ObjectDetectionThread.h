@@ -48,14 +48,13 @@ struct Color{
 
 class ObjectDetectionThread : public yarp::os::RateThread {
 private:
-    bool result;                    //result of the processing
+    bool runRealTime;                    //result of the processing
 
     std::string robot;              // name of the robot
-    std::string configFile;         // name of the configFile where the parameter of the camera are set
-    std::string inputPortName;      // name of input port for incoming events, typically from aexGrabber
     std::string name;               // rootname of all the ports opened by this thread
-    std::string graph_path;         // path to the graph to be loaded
-    std::string labels_path;        // path to the associated graph labels
+    std::string graphPath;         // path to the graph to be loaded
+    std::string labelsPath;        // path to the associated graph labels
+    std::string modelName;        // path to the associated graph labels
 
 
     std::unique_ptr<tensorflowObjectDetection> tfObjectDetection;
@@ -72,33 +71,33 @@ public:
     /**
     * constructor default
     */
-    ObjectDetectionThread(yarp::os::ResourceFinder &rf);
+    explicit ObjectDetectionThread(yarp::os::ResourceFinder &rf);
 
     /**
     * constructor 
     * @param robotname name of the robot
     */
-    ObjectDetectionThread(yarp::os::ResourceFinder &rf, std::string robotname, std::string configFile);
+    ObjectDetectionThread(yarp::os::ResourceFinder &rf, std::string robotname);
 
     /**
      * destructor
      */
-    ~ObjectDetectionThread();
+    ~ObjectDetectionThread() override;
 
     /**
     *  initialises the thread
     */
-    bool threadInit();
+    bool threadInit() override;
 
     /**
     *  correctly releases the thread
     */
-    void threadRelease();
+    void threadRelease() override;
 
     /**
     *  active part of the thread
     */
-    void run();
+    void run() override;
 
     /**
     * function that sets the rootname of all the ports that are going to be created by the thread
@@ -113,10 +112,6 @@ public:
     */
     std::string getName(const char *p);
 
-    /**
-    * function that sets the inputPort name
-    */
-    void setInputPortName(std::string inpPrtName);
 
     /**
      * Function to write into the Bottle outputLabelPort
@@ -131,7 +126,7 @@ public:
      * Set detection threshold for ObjectDetection DeepNetwork
      * @param t_thresholdInference
      */
-    void setDetectionThreshold(const double t_thresholdInference);
+    void setDetectionThreshold(double t_thresholdInference);
 
     /**
     * Get the detection threshold for ObjectDetection DeepNetwork
@@ -139,6 +134,13 @@ public:
     double getDetectionThreshold();
 
     void drawDetectedBoxes(IplImage* t_imageToDraw);
+
+    /**
+     * Send to the ouputBoxPort the image with the detected boxes
+     */
+    void sendImageBoxesDetected();
+
+
 
     /**
      * method for the processing in the ratethread

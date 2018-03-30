@@ -36,29 +36,36 @@ using namespace std;
 //********************interactionEngineRatethread******************************************************
 
 ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf) : RateThread(THRATE) {
-    robot = "icub";
+    robot = rf.check("robot",
+                     Value("icub"),
+                     "Robot name (string)").asString();
 
-    const string graphPath = rf.find("graph_path").asString().c_str();
-    const string labelsPath = rf.find("labels_path").asString().c_str();
-    const string modelName = rf.find("model_name").asString().c_str();
+    graphPath = rf.find("graph_path").asString().c_str();
+    labelsPath = rf.find("labels_path").asString().c_str();
+    modelName = rf.find("model_name").asString().c_str();
 
     tfObjectDetection = std::unique_ptr<tensorflowObjectDetection>(
             new tensorflowObjectDetection(graphPath, labelsPath, modelName));
 
-
+    runRealTime = rf.check("realTime",
+                           Value("false"),
+                           "Run the module in realTime (boolean)").asBool();
 }
 
-ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, string _robot, string _configFile)
+ObjectDetectionThread::ObjectDetectionThread(yarp::os::ResourceFinder &rf, string _robot)
         : RateThread(THRATE) {
     robot = std::move(_robot);
-    configFile = std::move(_configFile);
 
-    const string graphPath = rf.find("graph_path").asString().c_str();
-    const string labelsPath = rf.find("labels_path").asString().c_str();
-    const string modelName = rf.find("model_name").asString().c_str();
+    graphPath = rf.find("graph_path").asString().c_str();
+    labelsPath = rf.find("labels_path").asString().c_str();
+    modelName = rf.find("model_name").asString().c_str();
 
     tfObjectDetection = std::unique_ptr<tensorflowObjectDetection>(
             new tensorflowObjectDetection(graphPath, labelsPath, modelName));
+
+    runRealTime = rf.check("realTime",
+                           Value("false"),
+                           "Run the module in realTime (boolean)").asBool();
 
 }
 
@@ -110,33 +117,14 @@ std::string ObjectDetectionThread::getName(const char *p) {
     return str;
 }
 
-void ObjectDetectionThread::setInputPortName(string InpPort) {
 
-}
 
 void ObjectDetectionThread::run() {
 
-
-    if (outputImageBoxesPort.getOutputCount() && inputImagePort.getInputCount()) {
-
-        yarp::sig::ImageOf<yarp::sig::PixelRgb> *inputImage = inputImagePort.read(true);
-        if (inputImage != nullptr) {
-
-
-            auto *outputIplBoxes = (IplImage *) inputImage->getIplImage();
-            drawDetectedBoxes(outputIplBoxes);
-
-            inputImage = &outputImageBoxesPort.prepare();
-            inputImage->resize(outputIplBoxes->width, outputIplBoxes->height);
-
-            inputImage->wrapIplImage(outputIplBoxes);
-            outputImageBoxesPort.write();
-
-        }
-
+    if(runRealTime){
+        predictTopClass();
+        sendImageBoxesDetected();
     }
-
-    outputImageBoxesPort.write();
 
 }
 
@@ -225,6 +213,28 @@ Color ObjectDetectionThread::getRandomColor() {
     const Color randomColor = {redChannel, greenChannel, blueChannel};
 
     return randomColor;
+}
+
+void ObjectDetectionThread::sendImageBoxesDetected() {
+
+    if (outputImageBoxesPort.getOutputCount() && inputImagePort.getInputCount()) {
+
+        yarp::sig::ImageOf<yarp::sig::PixelRgb> *inputImage = inputImagePort.read(true);
+        if (inputImage != nullptr) {
+
+
+            auto *outputIplBoxes = (IplImage *) inputImage->getIplImage();
+            drawDetectedBoxes(outputIplBoxes);
+
+            inputImage = &outputImageBoxesPort.prepare();
+            inputImage->resize(outputIplBoxes->width, outputIplBoxes->height);
+
+            inputImage->wrapIplImage(outputIplBoxes);
+            outputImageBoxesPort.write();
+
+        }
+
+    }
 }
 
 
