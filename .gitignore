@@ -1,3 +1,5 @@
 .idea
 build
 cmake-*
+Open_models/*
+COCO_models/*
