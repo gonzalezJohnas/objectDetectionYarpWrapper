@@ -112,7 +112,9 @@ bool ObjectDetectionModule::configure(yarp::os::ResourceFinder &rf) {
 bool ObjectDetectionModule::close() {
     handlerPort.close();
     /* stop the thread */
+	
     printf("stopping the thread \n");
+    inferThread->stop();
     return true;
 }
 

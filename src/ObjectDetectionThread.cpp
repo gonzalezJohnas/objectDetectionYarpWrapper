@@ -190,7 +190,7 @@ double ObjectDetectionThread::getDetectionThreshold() {
 
 void ObjectDetectionThread::drawDetectedBoxes(IplImage *t_imageToDraw) {
 
-    cv::Point originBox, endBox, displayText;
+    cv::Point originBox, endBox, displayTextPos;
 
     for (auto &it : tfObjectDetection->m_objectsDetected) {
 
@@ -200,8 +200,14 @@ void ObjectDetectionThread::drawDetectedBoxes(IplImage *t_imageToDraw) {
 
         cvRectangle(t_imageToDraw, originBox, endBox, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 3);
 
-        displayText = cvPoint(it.second.coordinate[0] + 5, it.second.coordinate[1] + 15);
-        cv::putText(cv::cvarrToMat(t_imageToDraw), it.first, displayText, CV_FONT_HERSHEY_TRIPLEX, 1.5, cvScalar(objectColor.red, objectColor.green, objectColor.blue), 3);
+        const std::string textToDisplay = it.first + " " + std::to_string(it.second.probabilityDetection);
+        const cv::Size textSize = cv::getTextSize(textToDisplay, fontFace, fontScale, thickness, 0);                
+        displayTextPos = cvPoint(it.second.coordinate[0] , it.second.coordinate[1] );
+
+
+
+        cvRectangle(t_imageToDraw, cvPoint(it.second.coordinate[0] , it.second.coordinate[1] - (textSize.height * 2) ), cvPoint(displayTextPos.x + textSize.width, displayTextPos.y + textSize.height * 0.8), cvScalar(objectColor.red, objectColor.green, objectColor.blue), -1);
+        cv::putText(cv::cvarrToMat(t_imageToDraw), textToDisplay, displayTextPos, fontFace, fontScale, cvScalar(255, 255, 255), thickness);
     }
 
 

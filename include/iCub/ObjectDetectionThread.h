@@ -68,6 +68,12 @@ private:
 
     std::map<std::string, Color> objectsColor;
 
+
+    
+    const int fontFace = CV_FONT_HERSHEY_TRIPLEX;
+    const double fontScale = 0.8;
+    const int thickness = 1.5;
+
 public:
     /**
     * constructor default
